@@ -12,14 +12,27 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-import { User, Settings, LogOut } from "lucide-react";
+import { User, Settings, LogOut, Loader2 } from "lucide-react";
+import { useState } from "react";
 
 function Navbar() {
   const location = useLocation();
-  const { user } = useAuth();
+  useAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const isActive = (path: string) => {
     return location.pathname === path ? "bg-emerald-700/20" : "";
+  };
+
+  const handleSignOut = async () => {
+    try {
+      setIsSigningOut(true);
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error("Error signing out:", error);
+    } finally {
+      setIsSigningOut(false);
+    }
   };
 
   return (
@@ -29,32 +42,45 @@ function Navbar() {
           {/* Left side - Brand/Home */}
           <Link
             to="/"
-            className={`flex items-center space-x-2 px-3 py-2 rounded-md text-emerald-50 hover:bg-emerald-700/20 transition-colors ${isActive(
-              "/"
-            )}`}
+            className={`flex items-center gap-2 px-3 py-2 rounded-md text-emerald-50 
+              hover:bg-emerald-700/20 active:bg-emerald-700/30 transition-colors ${isActive(
+                "/"
+              )}`}
           >
             <User size={20} />
             <span className="font-medium">Idea To You</span>
           </Link>
 
           {/* Right side - Navigation */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center">
             <Link
               to="/profile"
-              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-emerald-50 hover:bg-emerald-700/20 transition-colors ${isActive(
-                "/profile"
-              )}`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-emerald-50 
+                hover:bg-emerald-700/20 active:bg-emerald-700/30 transition-colors ${isActive(
+                  "/profile"
+                )}`}
             >
               <Settings size={20} />
               <span className="hidden sm:inline">Settings</span>
             </Link>
 
             <button
-              onClick={() => supabase.auth.signOut()}
-              className="flex items-center space-x-2 px-3 py-2 rounded-md bg-emerald-600/20 text-emerald-50 hover:bg-emerald-600/30 transition-colors ml-2"
+              onClick={handleSignOut}
+              disabled={isSigningOut}
+              className="flex items-center gap-2 ml-2 px-3 py-2 rounded-md 
+                bg-emerald-600/20 text-emerald-50 hover:bg-emerald-600/30 
+                active:bg-emerald-600/40 transition-colors
+                disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Sign Out"
             >
-              <LogOut size={20} />
-              <span className="hidden sm:inline">Sign Out</span>
+              {isSigningOut ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <LogOut size={20} />
+              )}
+              <span className="hidden sm:inline">
+                {isSigningOut ? "Signing Out..." : "Sign Out"}
+              </span>
             </button>
           </div>
         </div>
