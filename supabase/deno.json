@@ -1,0 +1,16 @@
+{
+  "tasks": {
+    "deploy": "supabase functions deploy generate-image"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "strict": true,
+    "lib": ["deno.window", "deno.ns", "esnext"]
+  },
+  "fmt": {
+    "options": {
+      "lineWidth": 100,
+      "indentWidth": 2
+    }
+  }
+}

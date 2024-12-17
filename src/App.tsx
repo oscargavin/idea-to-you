@@ -92,10 +92,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const { user, loading } = useAuth();
-  const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
-  const anthropicKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-  const elevenLabsKey = import.meta.env.VITE_ELEVENLABS_API_KEY;
-  const leonardoKey = import.meta.env.VITE_LEONARDO_API_KEY;
 
   if (loading) {
     return (
@@ -115,12 +111,7 @@ function AppContent() {
         path="/"
         element={
           <ProtectedRoute>
-            <ScriptGeneratorComponent
-              openaiKey={openaiKey}
-              anthropicKey={anthropicKey}
-              elevenLabsKey={elevenLabsKey}
-              leonardoKey={leonardoKey}
-            />
+            <ScriptGeneratorComponent />
           </ProtectedRoute>
         }
       />

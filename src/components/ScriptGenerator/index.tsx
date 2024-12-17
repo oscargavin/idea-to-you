@@ -1,5 +1,7 @@
 // src/components/ScriptGenerator/index.tsx
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
+import { useAuth } from "../../components/context/AuthContext";
+import { supabase } from "../../lib/supabase/client";
 import {
   Card,
   CardContent,
@@ -42,22 +44,18 @@ import {
   STYLE_PRESETS,
 } from "../../lib/types";
 
-interface ScriptGeneratorProps {
-  openaiKey: string;
-  anthropicKey: string;
-  elevenLabsKey: string;
-  leonardoKey: string;
+interface ApiKeys {
+  openai_key: string | null;
+  anthropic_key: string | null;
+  elevenlabs_key: string | null;
+  leonardo_key: string | null;
 }
 
-export const ScriptGeneratorComponent: React.FC<ScriptGeneratorProps> = ({
-  openaiKey,
-  anthropicKey,
-  elevenLabsKey,
-  leonardoKey,
-}) => {
+export const ScriptGeneratorComponent: React.FC = () => {
+  const { user } = useAuth();
+  const [apiKeys, setApiKeys] = useState<ApiKeys | null>(null);
   const [topic, setTopic] = useState("");
   const [style, setStyle] = useState("");
-  const [segmentCount, setSegmentCount] = useState<number>(2);
   const [generationSegmentCount, setGenerationSegmentCount] =
     useState<number>(2);
   const [stylePreset, setStylePreset] = useState(STYLE_PRESETS[0].uuid);
@@ -70,27 +68,44 @@ export const ScriptGeneratorComponent: React.FC<ScriptGeneratorProps> = ({
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [audioDuration, setAudioDuration] = useState<number | null>(null);
 
+  // Fetch API keys when component mounts
+  useEffect(() => {
+    const fetchApiKeys = async () => {
+      try {
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from("user_api_keys")
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          setApiKeys(data);
+        }
+      } catch (error) {
+        console.error("Error fetching API keys:", error);
+        setError(
+          "Failed to fetch API keys. Please check your profile settings."
+        );
+      }
+    };
+
+    fetchApiKeys();
+  }, [user]);
+
   const calculateAudioDuration = async (audioBlob: Blob): Promise<number> => {
     const audioContext = new AudioContext();
 
     try {
-      // Convert blob to array buffer
       const arrayBuffer = await audioBlob.arrayBuffer();
-
-      // Decode the audio data
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-      // Get duration in seconds
       const duration = audioBuffer.duration;
-
-      // Clean up
       await audioContext.close();
-
       return duration;
     } catch (error) {
       console.error("Error calculating audio duration:", error);
-
-      // Fallback to original method if Web Audio API fails
       return new Promise((resolve) => {
         const audio = new Audio();
         const url = URL.createObjectURL(audioBlob);
@@ -103,6 +118,31 @@ export const ScriptGeneratorComponent: React.FC<ScriptGeneratorProps> = ({
     }
   };
 
+  const validateApiKeys = () => {
+    if (!apiKeys) {
+      throw new Error("Please set up your API keys in the profile page first.");
+    }
+
+    const requiredKeys = {
+      OpenAI: apiKeys.openai_key,
+      Anthropic: apiKeys.anthropic_key,
+      ElevenLabs: apiKeys.elevenlabs_key,
+      Leonardo: apiKeys.leonardo_key,
+    };
+
+    const missingKeys = Object.entries(requiredKeys)
+      .filter(([_, value]) => !value)
+      .map(([key]) => key);
+
+    if (missingKeys.length > 0) {
+      throw new Error(
+        `Missing required API keys: ${missingKeys.join(
+          ", "
+        )}. Please set them up in your profile.`
+      );
+    }
+  };
+
   const handleGenerate = async () => {
     try {
       setIsGenerating(true);
@@ -110,17 +150,29 @@ export const ScriptGeneratorComponent: React.FC<ScriptGeneratorProps> = ({
       setGeneratedContent(null);
       setVideoUrl(null);
       setAudioDuration(null);
-      setCurrentStep("Initializing...");
+      setCurrentStep("Validating API keys...");
 
-      // Initialize services
+      // Validate API keys
+      validateApiKeys();
+
+      if (!apiKeys) {
+        throw new Error("API keys not available");
+      }
+
+      // Initialize services with database-stored API keys
       const llm = new LLMService({
-        openaiKey,
-        anthropicKey,
+        openaiKey: apiKeys.openai_key!,
+        anthropicKey: apiKeys.anthropic_key!,
         provider,
       });
 
-      const imageService = new ImageGenerationService(leonardoKey, llm);
-      const voiceService = new VoiceService(elevenLabsKey);
+      const imageService = new ImageGenerationService(
+        apiKeys.leonardo_key!,
+        llm
+      );
+      const voiceService = new VoiceService(apiKeys.elevenlabs_key!);
+
+      setCurrentStep("Initializing services...");
 
       // Create script generator
       const generator = new ScriptGenerator({
@@ -129,17 +181,18 @@ export const ScriptGeneratorComponent: React.FC<ScriptGeneratorProps> = ({
         voiceService,
       });
 
-      // Then in the generate function:
+      // Generate content
       const content = await generator.generate(
         {
           topic,
           style,
           stylePreset,
           llmProvider: provider,
-          generationSegmentCount, // Changed from segmentCount
+          generationSegmentCount,
         },
         setCurrentStep
       );
+
       // Handle audio duration and URL creation
       if (content.audioBlob) {
         const duration = await calculateAudioDuration(content.audioBlob);
@@ -162,17 +215,17 @@ export const ScriptGeneratorComponent: React.FC<ScriptGeneratorProps> = ({
     if (!generatedContent?.script) return;
 
     const scriptText = `
-  Outline:
-  ${generatedContent.script.outline}
-  
-  Raw Content:
-  ${generatedContent.script.rawContent}
-  
-  Conceptual Segments:
-  ${generatedContent.script.conceptualSegments
-    .map((s) => `[${s.conceptTheme}]\n${s.content}`)
-    .join("\n\n")}
-    `.trim();
+Outline:
+${generatedContent.script.outline}
+
+Raw Content:
+${generatedContent.script.rawContent}
+
+Conceptual Segments:
+${generatedContent.script.conceptualSegments
+  .map((s) => `[${s.conceptTheme}]\n${s.content}`)
+  .join("\n\n")}
+  `.trim();
 
     const blob = new Blob([scriptText], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -208,7 +261,6 @@ export const ScriptGeneratorComponent: React.FC<ScriptGeneratorProps> = ({
           </p>
         </div>
 
-        {/* Main Card */}
         <Card className="border-0 bg-[#132C25]/90 backdrop-blur-xl shadow-2xl">
           <CardHeader className="border-b border-[#1D3B32]">
             <CardTitle className="text-2xl text-emerald-50 flex items-center gap-2">
@@ -421,7 +473,7 @@ export const ScriptGeneratorComponent: React.FC<ScriptGeneratorProps> = ({
                           <VideoPlayer
                             audioUrl={videoUrl}
                             images={generatedContent.images}
-                            script={generatedContent.script} // Add this line
+                            script={generatedContent.script}
                             durationInFrames={Math.ceil(audioDuration * 30)}
                           />
                         </div>
