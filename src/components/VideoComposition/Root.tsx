@@ -5,14 +5,12 @@ import { videoCompositionSchema, type VideoCompositionProps } from "./types";
 
 // Create a properly typed wrapper component
 const RemotionVideoComposition = (props: Record<string, unknown>) => {
-  // Parse and validate props using the Zod schema
   const parsedProps = videoCompositionSchema.parse(props);
-
-  // Now we can safely pass the validated props to the component
   return (
     <VideoComposition
       audioUrl={parsedProps.audioUrl}
       images={parsedProps.images}
+      script={parsedProps.script}
     />
   );
 };
@@ -22,6 +20,13 @@ export const RemotionRoot: React.FC = () => {
   const defaultProps: VideoCompositionProps = {
     audioUrl: "",
     images: [],
+    script: {
+      outline: "",
+      rawContent: "", // Add this
+      conceptualSegments: [], // Changed from segments to conceptualSegments
+      style: "",
+      totalDuration: 0,
+    },
   };
 
   return (

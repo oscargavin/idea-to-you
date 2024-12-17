@@ -58,6 +58,8 @@ export const ScriptGeneratorComponent: React.FC<ScriptGeneratorProps> = ({
   const [topic, setTopic] = useState("");
   const [style, setStyle] = useState("");
   const [segmentCount, setSegmentCount] = useState<number>(2);
+  const [generationSegmentCount, setGenerationSegmentCount] =
+    useState<number>(2);
   const [stylePreset, setStylePreset] = useState(STYLE_PRESETS[0].uuid);
   const [provider, setProvider] = useState<LLMProvider>("gpt4");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -127,18 +129,17 @@ export const ScriptGeneratorComponent: React.FC<ScriptGeneratorProps> = ({
         voiceService,
       });
 
-      // Generate content
+      // Then in the generate function:
       const content = await generator.generate(
         {
           topic,
           style,
           stylePreset,
           llmProvider: provider,
-          segmentCount,
+          generationSegmentCount, // Changed from segmentCount
         },
         setCurrentStep
       );
-
       // Handle audio duration and URL creation
       if (content.audioBlob) {
         const duration = await calculateAudioDuration(content.audioBlob);
@@ -161,11 +162,16 @@ export const ScriptGeneratorComponent: React.FC<ScriptGeneratorProps> = ({
     if (!generatedContent?.script) return;
 
     const scriptText = `
-Outline:
-${generatedContent.script.outline}
-
-Segments:
-${generatedContent.script.segments.map((s) => s.content).join("\n\n")}
+  Outline:
+  ${generatedContent.script.outline}
+  
+  Raw Content:
+  ${generatedContent.script.rawContent}
+  
+  Conceptual Segments:
+  ${generatedContent.script.conceptualSegments
+    .map((s) => `[${s.conceptTheme}]\n${s.content}`)
+    .join("\n\n")}
     `.trim();
 
     const blob = new Blob([scriptText], { type: "text/plain" });
@@ -251,15 +257,15 @@ ${generatedContent.script.segments.map((s) => s.content).join("\n\n")}
 
                   <div className="space-y-2">
                     <Label className="text-emerald-100">
-                      Number of Segments
+                      Content Generation Segments
                     </Label>
                     <Input
                       type="number"
                       min="1"
                       max="10"
-                      value={segmentCount}
+                      value={generationSegmentCount}
                       onChange={(e) =>
-                        setSegmentCount(
+                        setGenerationSegmentCount(
                           Math.max(1, parseInt(e.target.value) || 1)
                         )
                       }
@@ -415,6 +421,7 @@ ${generatedContent.script.segments.map((s) => s.content).join("\n\n")}
                           <VideoPlayer
                             audioUrl={videoUrl}
                             images={generatedContent.images}
+                            script={generatedContent.script} // Add this line
                             durationInFrames={Math.ceil(audioDuration * 30)}
                           />
                         </div>

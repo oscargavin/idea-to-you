@@ -52,6 +52,7 @@ export const VoiceGenerator: React.FC<VoiceGeneratorProps> = ({
     );
   };
 
+  // src/components/VoiceGenerator/index.tsx
   const generateVoice = async () => {
     try {
       if (!apiKey) {
@@ -71,8 +72,11 @@ export const VoiceGenerator: React.FC<VoiceGeneratorProps> = ({
       }
 
       const voiceService = new VoiceService(apiKey);
-      const blob = await voiceService.generateVoice(cleanedScript);
-      setAudioBlob(blob);
+      const response = await voiceService.generateVoiceWithTimings(
+        cleanedScript
+      );
+      // Extract just the audio blob from the response
+      setAudioBlob(response.audio);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to generate voice";

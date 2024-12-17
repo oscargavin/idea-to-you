@@ -7,6 +7,7 @@ import type { VideoPlayerProps } from "./types";
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   audioUrl,
   images,
+  script,
   durationInFrames,
 }) => {
   const compositionWidth = 1472;
@@ -17,8 +18,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       audioUrl,
       imageCount: images.length,
       durationInFrames,
+      conceptualSegments: script.conceptualSegments.length,
     });
-  }, [audioUrl, images, durationInFrames]);
+
+    // Log timing information for debugging
+    if (script.conceptualSegments) {
+      script.conceptualSegments.forEach((segment, index) => {
+        console.log(`Conceptual Segment ${index}:`, {
+          theme: segment.conceptTheme,
+          timing: segment.timing,
+        });
+      });
+    }
+  }, [audioUrl, images, durationInFrames, script]);
 
   return (
     <div className="relative w-full bg-black">
@@ -33,6 +45,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           inputProps={{
             audioUrl,
             images,
+            script,
           }}
           durationInFrames={durationInFrames}
           compositionWidth={compositionWidth}

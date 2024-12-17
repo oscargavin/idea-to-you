@@ -5,92 +5,108 @@ import { fade } from "@remotion/transitions/fade";
 import { linearTiming } from "@remotion/transitions";
 import { useEffect } from "react";
 import { preloadImage } from "@remotion/preload";
-import type { VideoCompositionProps, ImageSequenceProps } from "./types";
+import type { VideoCompositionProps } from "./types";
 import React from "react";
-
-const TRANSITION_DURATION = 30; // 1 second transition at 30fps
-
-const ImageSequence: React.FC<ImageSequenceProps> = ({ image }) => {
-  return (
-    <AbsoluteFill style={{ backgroundColor: "black" }}>
-      <img
-        src={image.url}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "contain",
-          backgroundColor: "black",
-        }}
-        alt={`Scene ${image.index + 1}`}
-      />
-    </AbsoluteFill>
-  );
-};
 
 export const VideoComposition: React.FC<VideoCompositionProps> = ({
   audioUrl,
   images,
+  script,
 }) => {
-  const { durationInFrames } = useVideoConfig();
+  const { durationInFrames, fps } = useVideoConfig();
+  const TRANSITION_DURATION = 30; // frames
 
-  // Calculate frames per segment based on total duration and number of images
-  const baseFramesPerSegment = Math.floor(
-    (durationInFrames - (images.length - 1) * TRANSITION_DURATION) /
-      images.length
-  );
-  // Add remaining frames to the last segment
-  const remainingFrames =
-    durationInFrames -
-    baseFramesPerSegment * images.length -
-    (images.length - 1) * TRANSITION_DURATION;
+  const getFrameForTime = (timeInSeconds: number): number =>
+    Math.round(timeInSeconds * fps);
 
   useEffect(() => {
-    if (!images?.length) return;
+    if (!script?.conceptualSegments) return;
 
-    console.log("Video composition details:", {
-      totalFrames: durationInFrames,
-      baseFramesPerSegment,
-      remainingFrames,
-      imageCount: images.length,
+    // Log composition timing information
+    console.log("Video composition setup:", {
+      durationInFrames,
+      fps,
+      segmentCount: script.conceptualSegments.length,
+      imageCount: images?.length,
     });
 
-    const unpreloaders = images.map((img) => preloadImage(img.url));
-    return () => unpreloaders.forEach((unpreload) => unpreload());
-  }, [images, durationInFrames, baseFramesPerSegment, remainingFrames]);
+    script.conceptualSegments.forEach((segment, i) => {
+      if (segment.timing) {
+        console.log(`Segment ${i} timing:`, {
+          start: getFrameForTime(segment.timing.start),
+          end: getFrameForTime(segment.timing.end),
+          duration: getFrameForTime(segment.timing.duration),
+          theme: segment.conceptTheme,
+        });
+      }
+    });
 
-  if (!images?.length) {
-    return (
-      <AbsoluteFill style={{ backgroundColor: "black" }}>
-        <div className="flex items-center justify-center text-white">
-          Loading...
-        </div>
-      </AbsoluteFill>
-    );
+    // Preload images
+    if (images) {
+      images.forEach((img) => preloadImage(img.url));
+    }
+  }, [script, images, fps, durationInFrames]);
+
+  if (!script?.conceptualSegments || !images?.length) {
+    console.warn("Missing required props:", {
+      hasSegments: !!script?.conceptualSegments,
+      imageCount: images?.length,
+    });
+    return null;
   }
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
+      {/* Audio track */}
       <Audio src={audioUrl} />
+
+      {/* Visual transitions */}
       <TransitionSeries>
-        {images.map((image, index) => (
-          <React.Fragment key={image.index}>
-            <TransitionSeries.Sequence
-              durationInFrames={
-                index === images.length - 1
-                  ? baseFramesPerSegment + remainingFrames
-                  : baseFramesPerSegment
-              }
-            >
-              <ImageSequence image={image} />
-            </TransitionSeries.Sequence>
-            {index < images.length - 1 && (
-              <TransitionSeries.Transition
-                presentation={fade()}
-                timing={linearTiming({ durationInFrames: TRANSITION_DURATION })}
-              />
-            )}
-          </React.Fragment>
-        ))}
+        {script.conceptualSegments.map((segment, index) => {
+          if (!segment.timing) {
+            console.warn(`Missing timing for segment ${index}`);
+            return null;
+          }
+
+          const startFrame = getFrameForTime(segment.timing.start);
+          const endFrame = getFrameForTime(segment.timing.end);
+          const duration = endFrame - startFrame;
+
+          // Find matching image by conceptual theme
+          const matchingImage = images.find((img) => img.index === index);
+
+          if (!matchingImage) {
+            console.warn(`No matching image for segment ${index}`);
+            return null;
+          }
+
+          return (
+            <React.Fragment key={segment.index}>
+              <TransitionSeries.Sequence durationInFrames={duration}>
+                <AbsoluteFill style={{ backgroundColor: "black" }}>
+                  <img
+                    src={matchingImage.url}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "contain",
+                    }}
+                    alt={`Scene: ${segment.conceptTheme}`}
+                  />
+                </AbsoluteFill>
+              </TransitionSeries.Sequence>
+
+              {index < script.conceptualSegments.length - 1 && (
+                <TransitionSeries.Transition
+                  presentation={fade()}
+                  timing={linearTiming({
+                    durationInFrames: TRANSITION_DURATION,
+                  })}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
       </TransitionSeries>
     </AbsoluteFill>
   );
