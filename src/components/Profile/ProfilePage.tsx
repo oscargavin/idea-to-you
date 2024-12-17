@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../components/context/AuthContext";
 import { supabase } from "../../lib/supabase/client";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Key, Loader2, Save, User } from "lucide-react";
 
 interface ApiKeys {
   openai_key: string | null;
@@ -94,82 +94,121 @@ export function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B1512] py-12">
+    <div className="min-h-screen gradient-bg py-12">
       <div className="max-w-3xl mx-auto px-4">
-        <div className="bg-[#132C25]/90 backdrop-blur-xl shadow-2xl rounded-xl p-8">
-          <h1 className="text-2xl font-bold text-emerald-50 mb-6">API Keys</h1>
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="glass-card rounded-2xl overflow-hidden mb-8">
+          <div className="p-8 border-b border-[#1D3B32]/30">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="h-12 w-12 rounded-xl bg-emerald-600/10 flex items-center justify-center">
+                <Key className="h-6 w-6 text-emerald-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-emerald-50">API Keys</h1>
+                <p className="text-emerald-200/70 text-sm">
+                  Manage your API keys for various services
+                </p>
+              </div>
+            </div>
+
+            {user && (
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-600/10">
+                <User className="h-5 w-5 text-emerald-400" />
+                <span className="text-emerald-200/70 text-sm">
+                  Signed in as {user.email}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-8 space-y-6">
             {message && (
               <div
-                className={`p-4 rounded-md ${
+                className={`glass-card p-4 rounded-xl border ${
                   message.type === "success"
-                    ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
-                    : "bg-red-500/10 border border-red-500/20 text-red-400"
+                    ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-400"
+                    : "bg-red-500/5 border-red-500/20 text-red-400"
                 }`}
               >
                 {message.text}
               </div>
             )}
 
-            {Object.entries(apiKeys).map(([key, value]) => {
-              if (
-                key === "user_id" ||
-                key === "id" ||
-                key === "created_at" ||
-                key === "updated_at"
-              )
-                return null;
-              return (
-                <div key={key} className="space-y-1">
-                  <label
-                    htmlFor={key}
-                    className="block text-sm font-medium text-emerald-200/70"
-                  >
-                    {key
-                      .split("_")
-                      .map(
-                        (word) => word.charAt(0).toUpperCase() + word.slice(1)
-                      )
-                      .join(" ")}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={visibility[key] ? "text" : "password"}
-                      id={key}
-                      value={value || ""}
-                      onChange={(e) =>
-                        setApiKeys((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))
-                      }
-                      className="mt-1 block w-full rounded-md bg-[#0F231D] border-[#1D3B32] text-emerald-50 px-3 py-2 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 focus:outline-none pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => toggleVisibility(key)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-emerald-200/70 hover:text-emerald-200 transition-colors"
+            <div className="grid gap-6">
+              {Object.entries(apiKeys).map(([key, value]) => {
+                if (
+                  key === "user_id" ||
+                  key === "id" ||
+                  key === "created_at" ||
+                  key === "updated_at"
+                )
+                  return null;
+                return (
+                  <div key={key} className="space-y-2">
+                    <label
+                      htmlFor={key}
+                      className="block text-sm font-medium text-emerald-200/70"
                     >
-                      {visibility[key] ? (
-                        <EyeOff size={20} />
-                      ) : (
-                        <Eye size={20} />
-                      )}
-                    </button>
+                      {key
+                        .split("_")
+                        .map(
+                          (word) => word.charAt(0).toUpperCase() + word.slice(1)
+                        )
+                        .join(" ")}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={visibility[key] ? "text" : "password"}
+                        id={key}
+                        value={value || ""}
+                        onChange={(e) =>
+                          setApiKeys((prev) => ({
+                            ...prev,
+                            [key]: e.target.value,
+                          }))
+                        }
+                        className="neo-input w-full rounded-xl h-12 pr-10 text-emerald-50 
+                          placeholder:text-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20"
+                        placeholder={`Enter your ${key.split("_")[0]} API key`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleVisibility(key)}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 
+                          text-emerald-200/70 hover:text-emerald-200 transition-colors"
+                      >
+                        {visibility[key] ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-
-            <div className="pt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
-              >
-                {loading ? "Saving..." : "Save API Keys"}
-              </button>
+                );
+              })}
             </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-12 bg-gradient-to-r from-emerald-600 to-emerald-500 
+                hover:from-emerald-500 hover:to-emerald-400 text-white font-medium 
+                rounded-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]
+                shadow-lg hover:shadow-emerald-500/25 disabled:opacity-50 disabled:hover:scale-100
+                flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-5 w-5" />
+                  Save API Keys
+                </>
+              )}
+            </button>
           </form>
         </div>
       </div>
