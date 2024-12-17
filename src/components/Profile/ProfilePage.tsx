@@ -98,19 +98,6 @@ export function ProfilePage() {
       <div className="max-w-3xl mx-auto px-4">
         <div className="bg-[#132C25]/90 backdrop-blur-xl shadow-2xl rounded-xl p-8">
           <h1 className="text-2xl font-bold text-emerald-50 mb-6">API Keys</h1>
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-emerald-50">API Keys</h1>
-            <button
-              onClick={() => {
-                supabase.auth.getSession().then(({ data }) => {
-                  console.log("Auth Token:", data.session?.access_token);
-                });
-              }}
-              className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
-            >
-              Show Token
-            </button>
-          </div>
           <form onSubmit={handleSubmit} className="space-y-6">
             {message && (
               <div

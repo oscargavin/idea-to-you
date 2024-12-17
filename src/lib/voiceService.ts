@@ -26,13 +26,13 @@ export class VoiceService {
     this.client = new ElevenLabsClient({ apiKey });
   }
 
-  async generateVoiceWithTimings(text: string): Promise<TimedAudioResponse> {
+  async generateVoiceWithTimings(text: string, voiceId: string, modelId: string): Promise<TimedAudioResponse> {
     try {
       const response = await this.client.textToSpeech.convertWithTimestamps(
-        "JBFqnCBsd6RMkjVDRZzb",
+        voiceId,
         {
           text,
-          model_id: "eleven_multilingual_v2",
+          model_id: modelId,
           output_format: "mp3_44100_128"
         }
       ) as ElevenLabsResponse;

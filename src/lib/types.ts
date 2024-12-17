@@ -33,11 +33,14 @@ export interface Script {
 }
 
 export interface GenerationConfig {
-    topic: string;
-    style: string;
-    stylePreset: string;
-    llmProvider: LLMProvider;
-    generationSegmentCount: number;  // This is the key change
+  topic: string;
+  keyPoints?: string;  // New optional field
+  style: string;
+  stylePreset: string;
+  llmProvider: LLMProvider;
+  generationSegmentCount: number;
+  voiceId: string;     // New required field
+  voiceModel: string;  // New required field
 }
 
 export interface GeneratedContent {

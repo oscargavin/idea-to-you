@@ -4,11 +4,15 @@ import { VoiceService } from "../../lib/voiceService";
 interface VoiceGeneratorProps {
   script: string;
   apiKey: string;
+  voiceId: string;
+  modelId: string;
 }
 
 export const VoiceGenerator: React.FC<VoiceGeneratorProps> = ({
   script,
   apiKey,
+  voiceId,
+  modelId,
 }) => {
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -52,11 +56,14 @@ export const VoiceGenerator: React.FC<VoiceGeneratorProps> = ({
     );
   };
 
-  // src/components/VoiceGenerator/index.tsx
   const generateVoice = async () => {
     try {
       if (!apiKey) {
         throw new Error("ElevenLabs API key is required");
+      }
+
+      if (!voiceId || !modelId) {
+        throw new Error("Voice and model selection are required");
       }
 
       // Clean the script before sending to ElevenLabs
@@ -73,8 +80,11 @@ export const VoiceGenerator: React.FC<VoiceGeneratorProps> = ({
 
       const voiceService = new VoiceService(apiKey);
       const response = await voiceService.generateVoiceWithTimings(
-        cleanedScript
+        cleanedScript,
+        voiceId,
+        modelId
       );
+
       // Extract just the audio blob from the response
       setAudioBlob(response.audio);
     } catch (err) {
@@ -104,8 +114,8 @@ export const VoiceGenerator: React.FC<VoiceGeneratorProps> = ({
   return (
     <div className="space-y-4">
       {error && (
-        <div className="text-red-600 bg-red-50 p-3 rounded-lg border border-red-200">
-          {error}
+        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-lg">
+          <p className="text-red-400">{error}</p>
         </div>
       )}
 
@@ -113,7 +123,7 @@ export const VoiceGenerator: React.FC<VoiceGeneratorProps> = ({
         <button
           onClick={generateVoice}
           disabled={isGenerating}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 transition-colors"
+          className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-emerald-900/30 disabled:text-emerald-200/50 disabled:cursor-not-allowed transition-colors"
         >
           {isGenerating ? "Generating..." : "Generate Voice"}
         </button>
@@ -121,7 +131,7 @@ export const VoiceGenerator: React.FC<VoiceGeneratorProps> = ({
         {audioBlob && (
           <button
             onClick={handleDownload}
-            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className="px-6 py-2 bg-[#1D3B32] text-emerald-50 rounded-lg hover:bg-[#2A4C43] transition-colors"
           >
             Download MP3
           </button>
@@ -129,14 +139,14 @@ export const VoiceGenerator: React.FC<VoiceGeneratorProps> = ({
       </div>
 
       {isGenerating && (
-        <div className="flex items-center gap-2 text-blue-600">
-          <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+        <div className="flex items-center gap-2 text-emerald-400">
+          <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
           Generating voice...
         </div>
       )}
 
       {audioUrl && (
-        <div className="mt-4">
+        <div className="mt-4 p-4 bg-[#0F231D] border border-[#1D3B32] rounded-lg">
           <audio ref={audioRef} controls className="w-full">
             <source src={audioUrl} type="audio/mpeg" />
             Your browser does not support the audio element.
