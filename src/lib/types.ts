@@ -25,7 +25,7 @@ export interface TimingData {
 
 export interface Script {
   outline: string;
-  rawContent: string;  // Complete unsegmented content
+  rawContent: string;
   conceptualSegments: ConceptualSegment[];
   style: string;
   totalDuration?: number;
@@ -34,13 +34,14 @@ export interface Script {
 
 export interface GenerationConfig {
   topic: string;
-  keyPoints?: string;  // New optional field
+  keyPoints?: string;
   style: string;
   stylePreset: string;
   llmProvider: LLMProvider;
   generationSegmentCount: number;
-  voiceId: string;     // New required field
-  voiceModel: string;  // New required field
+  voiceId: string;
+  voiceModel: string;
+  showSubtitles: boolean; // Add this line
 }
 
 export interface GeneratedContent {
@@ -48,6 +49,7 @@ export interface GeneratedContent {
   audioBlob: Blob;
   images?: GeneratedImage[];
   totalDuration: number;
+  showSubtitles?: boolean; // Add this line
 }
 
 export interface GeneratedImage {

@@ -8,8 +8,15 @@ import {
   GenerationSegment,
   ConceptualSegment,
   GenerationConfig,
-  GeneratedContent
+  GeneratedContent,
+  CharacterTiming
 } from './types';
+
+interface TransitionPoint {
+  endPhrase: string;  // The distinctive phrase that marks the end of a segment
+  conceptTheme: string;
+  visualDescription: string;
+}
 
 export class ScriptGenerator {
   private llm: LLMService;
@@ -28,19 +35,23 @@ export class ScriptGenerator {
 
   async generate(config: GenerationConfig, onStep?: (step: string) => void): Promise<GeneratedContent> {
     try {
-      // Step 1: Generate initial content using generation segments
+      // Step 1: Generate initial content
       onStep?.('Generating initial content...');
       const { outline, rawContent } = await this.generateInitialContent(config);
 
-      // Step 2: Identify conceptual breaks in the content
-      onStep?.('Analyzing content structure...');
-      const conceptualSegments = await this.identifyConceptualSegments(rawContent);
-
-      // Step 3: Generate voice and get timing data
+      // Step 2: Generate voice first to get timing data
       onStep?.('Generating audio narration...');
-      const voiceResponse = await this.voiceService.generateVoiceWithTimings(rawContent);
+      const voiceResponse = await this.voiceService.generateVoiceWithTimings(
+        rawContent,
+        config.voiceId,
+        config.voiceModel
+      );
 
-      // Step 4: Apply timing data to conceptual segments
+      // Step 3: Identify segments using the new segmentation approach
+      onStep?.('Analyzing content structure...');
+      const conceptualSegments = await this.identifyConceptualSegments(rawContent, this.llm);
+
+      // Step 4: Apply timing data to conceptual segments using character timings
       const scriptWithTimings: Script = {
         outline,
         rawContent,
@@ -49,13 +60,13 @@ export class ScriptGenerator {
         characterTimings: voiceResponse.characterTimings
       };
 
-      // Step 5: Calculate precise timings for each conceptual segment
-      const segmentedScript = this.voiceService.calculateConceptualSegmentTimings(
+      // Step 5: Calculate precise timings for each segment
+      const segmentedScript = this.calculateSegmentTimings(
         scriptWithTimings,
         voiceResponse.characterTimings
       );
 
-      // Step 6: Generate images for each conceptual segment
+      // Step 6: Generate images for each segment
       onStep?.('Generating visuals...');
       const images = await this.imageService.generateImagesFromSegments(
         segmentedScript.conceptualSegments,
@@ -63,16 +74,69 @@ export class ScriptGenerator {
         (progress) => onStep?.(`Generating images: ${Math.round(progress * 100)}%`)
       );
 
+      // Calculate total duration from voice timings
+      const totalDuration = this.calculateTotalDuration(voiceResponse.characterTimings);
+
       return {
         script: segmentedScript,
         audioBlob: voiceResponse.audio,
         images,
-        totalDuration: this.calculateTotalDuration(segmentedScript)
+        totalDuration,
+        showSubtitles: config.showSubtitles
       };
     } catch (error) {
       console.error('Error in content generation:', error);
       throw error;
     }
+  }
+
+  private calculateTotalDuration(timings: CharacterTiming): number {
+    const lastIndex = timings.character_end_times_seconds.length - 1;
+    return timings.character_end_times_seconds[lastIndex] || 0;
+  }
+
+  private calculateSegmentTimings(script: Script, timings: CharacterTiming): Script {
+    const { characters, character_start_times_seconds, character_end_times_seconds } = timings;
+    const totalDuration = this.calculateTotalDuration(timings);
+
+    let currentPosition = 0;
+    const updatedSegments = script.conceptualSegments.map((segment, index) => {
+      // Find the segment's content in the full text
+      const segmentContent = segment.content;
+      const segmentStart = script.rawContent.indexOf(segmentContent, currentPosition);
+      
+      if (segmentStart === -1) {
+        throw new Error(`Could not find segment content in script: ${segmentContent.substring(0, 50)}...`);
+      }
+
+      const segmentEnd = segmentStart + segmentContent.length;
+      currentPosition = segmentEnd;
+
+      // Find corresponding character timings
+      const startTime = character_start_times_seconds[segmentStart] || 0;
+      let endTime = character_end_times_seconds[Math.min(segmentEnd - 1, character_end_times_seconds.length - 1)] || 0;
+
+      // For the last segment, ensure it extends to the end of the audio
+      if (index === script.conceptualSegments.length - 1) {
+        endTime = totalDuration;
+      }
+
+      return {
+        ...segment,
+        timing: {
+          start: startTime,
+          end: endTime,
+          duration: endTime - startTime,
+          contentStart: segmentStart,
+          contentEnd: segmentEnd
+        }
+      };
+    });
+
+    return {
+      ...script,
+      conceptualSegments: updatedSegments
+    };
   }
 
   private async generateInitialContent(config: GenerationConfig): Promise<{
@@ -105,66 +169,100 @@ export class ScriptGenerator {
     return { outline, rawContent };
   }
 
-  // src/lib/scriptGen.ts - update the identifyConceptualSegments method
-  private async identifyConceptualSegments(content: string): Promise<ConceptualSegment[]> {
-    const prompt = `You are a script analyzer that returns ONLY valid JSON.
-  Your task is to break this script into conceptual segments where visual imagery should change.
-  Return a JSON array where each object represents a segment with these exact keys:
-  - content: string with the segment text
-  - conceptTheme: string describing the main theme
-  - visualDescription: string describing what to show visually
-  - index: number (starting from 0)
-
-  Return ONLY the JSON array, no other text, no markdown, no code blocks.
-
+  private async identifyConceptualSegments(content: string, llm: LLMService): Promise<ConceptualSegment[]> {
+    // Ask LLM to identify natural transition points
+    const prompt = `Analyze this script and identify 2-5 natural transition points where the visual imagery should change.
+  For each segment, provide:
+  - endPhrase: A unique, distinctive 10-20 word phrase that marks the end of this segment (must be exact text from the script)
+  - conceptTheme: Brief description of the main theme
+  - visualDescription: Description of what to show visually
+  
+  Return ONLY a JSON array. Format:
+  [
+    {
+      "endPhrase": "... exact ending phrase from script ...",
+      "conceptTheme": "theme description",
+      "visualDescription": "visual description"
+    }
+  ]
+  
   Script to analyze:
   ${content}`;
-
-    let llmResponse = ''; // Declare outside try block to be accessible in catch
-
+  
     try {
-      // Store the response
-      llmResponse = await this.llm.generateContent(prompt);
-
-      // Clean up the response to handle potential markdown/code blocks
-      const cleanedResponse = llmResponse
-        .replace(/```json\n?/g, '')  // Remove JSON code block markers
-        .replace(/```\n?/g, '')      // Remove any other code block markers
-        .trim();                     // Remove any extra whitespace
-
-      // Parse the cleaned response
-      const parsed = JSON.parse(cleanedResponse);
-
-      // Validate the structure
-      if (!Array.isArray(parsed)) {
-        throw new Error('Expected JSON array in response');
+      const response = await llm.generateContent(prompt);
+      const transitions: TransitionPoint[] = JSON.parse(
+        response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      );
+  
+      // Validate transitions
+      if (!Array.isArray(transitions) || transitions.length === 0) {
+        throw new Error('Invalid transitions format');
       }
-
-      return parsed.map((segment: any, index: number) => ({
-        content: segment.content || '',
-        conceptTheme: segment.conceptTheme || `Segment ${index + 1}`,
-        visualDescription: segment.visualDescription || '',
-        index: segment.index || index
-      }));
-
+  
+      // Convert transitions to segments
+      const segments: ConceptualSegment[] = [];
+      let currentPosition = 0;
+  
+      for (let i = 0; i < transitions.length; i++) {
+        const transition = transitions[i];
+        
+        // Find the end of this segment in the content
+        const endPosition = content.indexOf(transition.endPhrase, currentPosition);
+        if (endPosition === -1) {
+          console.warn(`Could not find transition phrase: ${transition.endPhrase}`);
+          continue;
+        }
+  
+        // Extract segment content
+        const segmentContent = content.slice(
+          currentPosition,
+          endPosition + transition.endPhrase.length
+        );
+  
+        segments.push({
+          content: segmentContent,
+          conceptTheme: transition.conceptTheme,
+          visualDescription: transition.visualDescription,
+          index: i
+        });
+  
+        currentPosition = endPosition + transition.endPhrase.length;
+      }
+  
+      // Add final segment if there's remaining content
+      if (currentPosition < content.length) {
+        segments.push({
+          content: content.slice(currentPosition),
+          conceptTheme: "Closing Segment",
+          visualDescription: "Final visual representation",
+          index: segments.length
+        });
+      }
+  
+      // Validate complete coverage
+      const totalContent = segments.map(s => s.content).join('');
+      if (totalContent.length !== content.length) {
+        console.warn('Content coverage mismatch. Adding fallback segment.');
+        return [{
+          content: content,
+          conceptTheme: 'Complete Content',
+          visualDescription: 'Visual representation of the content',
+          index: 0
+        }];
+      }
+  
+      return segments;
     } catch (error) {
-      console.error('Error parsing conceptual segments:', error);
-      console.log('Raw LLM response:', llmResponse);
-      
-      // Fallback: Create a single segment with the entire content
+      console.error('Error identifying segments:', error);
+      // Fallback to single segment
       return [{
         content: content,
         conceptTheme: 'Complete Content',
-        visualDescription: 'Visual representation of the main topic',
+        visualDescription: 'Visual representation of the content',
         index: 0
       }];
     }
-  }
-
-  private calculateTotalDuration(script: Script): number {
-    if (!script.conceptualSegments.length) return 0;
-    const lastSegment = script.conceptualSegments[script.conceptualSegments.length - 1];
-    return lastSegment.timing?.end || 0;
   }
 
   private async generateOutline(topic: string, style: string, segmentCount: number): Promise<string> {
@@ -196,7 +294,10 @@ Write part ${index + 1} of ${totalSegments} about "${topic}" that:
 - Includes vivid, visual details
 - Flows from the outline naturally
 
+Remember, here is the ${outline} for the whole script.
+
 Use natural language and avoid any technical directions.
+
 `;
 
     const content = await this.llm.generateContent(prompt);

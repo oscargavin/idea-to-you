@@ -2,18 +2,11 @@ import React, { useState, useCallback, useEffect } from "react";
 import { FileText, Mic, Paintbrush, Settings } from "lucide-react";
 import { useAuth } from "../../components/context/AuthContext";
 import { supabase } from "../../lib/supabase/client";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
+import { Switch } from "../../components/ui/switch";
 import { Textarea } from "../../components/ui/textarea";
 import { Button } from "../../components/ui/button";
 import { Label } from "../../components/ui/label";
-import SearchableSelect from "./SearchableSelect";
 import {
   Select,
   SelectContent,
@@ -75,9 +68,10 @@ export const ScriptGeneratorComponent: React.FC = () => {
   const [keyPoints, setKeyPoints] = useState("");
   const [style, setStyle] = useState("");
   const [generationSegmentCount, setGenerationSegmentCount] =
-    useState<number>(2);
+    useState<number>(1);
   const [stylePreset, setStylePreset] = useState(STYLE_PRESETS[0].uuid);
   const [provider, setProvider] = useState<LLMProvider>("gpt4");
+  const [showSubtitles, setShowSubtitles] = useState(true);
   const [selectedVoice, setSelectedVoice] = useState(() => {
     const defaultVoice = VOICES.find(
       (voice) => voice.id === "EiNlNiXeDU1pqqOPrYMO"
@@ -197,6 +191,16 @@ export const ScriptGeneratorComponent: React.FC = () => {
         throw new Error("API keys not available");
       }
 
+      if (!selectedVoice) {
+        throw new Error("Please select a voice");
+      }
+      if (!selectedModel) {
+        throw new Error("Please select a voice model");
+      }
+
+      console.log("Using voice:", selectedVoice); // Debug log
+      console.log("Using model:", selectedModel); // Debug log
+
       // Initialize services with database-stored API keys
       const llm = new LLMService({
         openaiKey: apiKeys.openai_key!,
@@ -210,7 +214,7 @@ export const ScriptGeneratorComponent: React.FC = () => {
       );
       const voiceService = new VoiceService(apiKeys.elevenlabs_key!);
 
-      setCurrentStep("Initializing services...");
+      setCurrentStep("Initialising services...");
 
       // Create script generator
       const generator = new ScriptGenerator({
@@ -219,7 +223,7 @@ export const ScriptGeneratorComponent: React.FC = () => {
         voiceService,
       });
 
-      // Generate content
+      // Generate content with subtitles setting
       const content = await generator.generate(
         {
           topic,
@@ -230,6 +234,7 @@ export const ScriptGeneratorComponent: React.FC = () => {
           generationSegmentCount,
           voiceId: selectedVoice,
           voiceModel: selectedModel,
+          showSubtitles,
         },
         setCurrentStep
       );
@@ -242,7 +247,11 @@ export const ScriptGeneratorComponent: React.FC = () => {
         setVideoUrl(audioUrl);
       }
 
-      setGeneratedContent(content);
+      // Update generated content with subtitles setting
+      setGeneratedContent({
+        ...content,
+        showSubtitles, // Include subtitles setting in generated content
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
       console.error("Generation error:", err);
@@ -382,8 +391,11 @@ ${generatedContent.script.conceptualSegments
                       </Label>
                       <Combobox
                         options={voiceOptions}
-                        value={selectedVoice}
-                        onValueChange={setSelectedVoice}
+                        value={selectedVoice || ""} // Ensure we never pass undefined
+                        onValueChange={(value) => {
+                          console.log("Voice selected:", value); // Debug log
+                          setSelectedVoice(value);
+                        }}
                         placeholder="Select a voice"
                       />
                     </div>
@@ -394,8 +406,11 @@ ${generatedContent.script.conceptualSegments
                       </Label>
                       <Combobox
                         options={modelOptions}
-                        value={selectedModel}
-                        onValueChange={setSelectedModel}
+                        value={selectedModel || ""} // Ensure we never pass undefined
+                        onValueChange={(value) => {
+                          console.log("Model selected:", value); // Debug log
+                          setSelectedModel(value);
+                        }}
                         placeholder="Select a voice model"
                       />
                     </div>
@@ -464,7 +479,7 @@ ${generatedContent.script.conceptualSegments
                             value="gpt4"
                             className="text-emerald-100 hover:bg-[#1D3B32] focus:bg-[#1D3B32]"
                           >
-                            GPT-4
+                            GPT-4o
                           </SelectItem>
                           <SelectItem
                             value="claude"
@@ -507,6 +522,29 @@ ${generatedContent.script.conceptualSegments
                         }
                         className="neo-input w-full rounded-xl h-12 text-emerald-50 placeholder:text-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20"
                       />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col space-y-1">
+                          <Label
+                            htmlFor="show-subtitles"
+                            className="text-emerald-100 text-sm font-medium"
+                          >
+                            Show Subtitles
+                          </Label>
+                          <span className="text-emerald-200/70 text-xs">
+                            Add automatically synchronized subtitles to the
+                            video
+                          </span>
+                        </div>
+                        <Switch
+                          id="show-subtitles"
+                          checked={showSubtitles}
+                          onCheckedChange={setShowSubtitles}
+                          className="data-[state=checked]:bg-emerald-600"
+                        />
+                      </div>
                     </div>
                   </div>
                 </TabsContent>

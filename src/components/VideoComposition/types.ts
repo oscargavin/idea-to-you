@@ -1,6 +1,5 @@
 // src/components/VideoComposition/types.ts
-import { z } from 'zod';
-import { GeneratedImage, Script } from "../../lib/types";
+import type { GeneratedImage, Script } from "../../lib/types";
 
 export interface VideoCompositionProps {
   audioUrl: string;
@@ -15,22 +14,10 @@ export interface VideoPlayerProps {
   durationInFrames: number;
 }
 
-// Create Zod schemas that match the interfaces
-const generatedImageSchema = z.object({
-  url: z.string(),
-  conceptTheme: z.string(),
-  index: z.number()
-});
-
-export const videoCompositionSchema = z.object({
-  audioUrl: z.string(),
-  images: z.array(generatedImageSchema),
-  script: z.any() // We'll use Script type from lib/types
-});
-
-export const videoPlayerSchema = z.object({
-  audioUrl: z.string(),
-  images: z.array(generatedImageSchema),
-  script: z.any(),
-  durationInFrames: z.number()
-});
+export interface SegmentTiming {
+  start: number;
+  end: number;
+  duration: number;
+  contentStart: number;
+  contentEnd: number;
+}
